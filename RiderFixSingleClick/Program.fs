@@ -1,8 +1,8 @@
 ﻿namespace RiderFixSingleClick
 
+open System
 open System.IO
 open Microsoft.FSharp.Core
-open System.Linq
 open System.Xml.Linq
 
 [<RequireQualifiedAccess>]
@@ -20,53 +20,192 @@ module Array =
 
 module Program =
 
-    let folders = [| @"D:\VRM\"; @"D:\GIT\"; @"D:\REF\"; @"D:\TMP\" |]
+    let inline xName (localName: string) = XName.Get(localName)
+
+    let folders = [| @"D:\VRM\"; @"D:\GIT\"; @"D:\TMP\" |]
+
+    let element (name: string) (attributes: (string * string) seq) (container: XContainer) : XElement =
+        let name = xName name
+
+        container.Elements()
+        |> Seq.tryFind (fun x ->
+            x.Name = name
+            && attributes |> Seq.forall (fun (name, value) -> x.Attribute(name).Value = value)
+        ) |> Option.defaultWith (fun () ->
+            let element = XElement(name, attributes |> Seq.map (fun (name, value) -> XAttribute(name, value)))
+            container.Add(element)
+            element
+        )
+
+    let attribute (name: XName) (value: obj) (element: XElement) = element.SetAttributeValue(name, value)
+
+
+    let getGitInfos file =
+
+
+
+        let locateGitDir (file: string) =
+
+            let tryCombine sub path =
+                let combined = Path.Combine(path, sub)
+                if Directory.Exists(combined) then Some combined else None
+
+            let tryParent (path: string) =
+                path |> Path.GetDirectoryName |> Option.ofObj
+
+            let rec locateGitDir' path =
+                path
+                |> tryCombine ".git"
+                |> Option.orElseWith (fun () -> tryParent path |> Option.bind locateGitDir')
+
+            locateGitDir' (Path.GetDirectoryName file)
+
+        let getRemotes (gitDir: string) =
+            use repo = new LibGit2Sharp.Repository(gitDir)
+            repo.Network.Remotes |> Seq.toList
+
+        let pickRemote (remotes: LibGit2Sharp.Remote list) =
+            remotes
+            |> Seq.tryFind (fun remote -> remote.Name = "origin")
+            |> Option.map (fun remote -> remote.Url |> Uri)
+
+        let extractGitInfos (uri: Uri) =
+
+            let result = {|
+                RemoteUrl = uri.ToString()
+                RemoteName = uri.Segments |> Array.last |> Path.GetFileNameWithoutExtension
+                PresentableString = $"GitLab {uri.ToString()}"
+                WorkSpace = uri.Segments |> Seq.rev |> Seq.skip 1 |> Seq.rev |> String.concat "/"
+                BaseUrl = uri.GetLeftPart(UriPartial.Authority)
+            |}
+            
+            result
+
+        file
+        |> locateGitDir
+        |> Option.map getRemotes
+        |> Option.bind pickRemote
+        |> Option.map extractGitInfos
 
     let applyFix workspaceFile =
         async {
             printf $"Modifying %s{workspaceFile}"
 
+            let gitInfos = getGitInfos workspaceFile
+
             let xDocument = XDocument.Load(workspaceFile)
+
             let root = xDocument.Root
-            // get <component name="VcsManagerConfiguration">
-            let vcsManagerConfiguration =
-                match
-                    (root
-                        .Elements("component")
-                        .SingleOrDefault(fun x -> x.Attribute("name").Value = "VcsManagerConfiguration")
-                     |> Option.ofObj)
-                with
-                | None ->
-                    let newVcsManagerConfiguration =
-                        XElement("component", XAttribute("name", "VcsManagerConfiguration"))
 
-                    root.Add(newVcsManagerConfiguration)
-                    newVcsManagerConfiguration
-                | Some x -> x
-            // get <option name="LOCAL_CHANGES_DETAILS_PREVIEW_SHOWN">
-            match
-                (vcsManagerConfiguration
-                    .Elements("option")
-                    .SingleOrDefault(fun x -> x.Attribute("name").Value = "LOCAL_CHANGES_DETAILS_PREVIEW_SHOWN")
-                 |> Option.ofObj)
-            with
-            | None ->
-                let newLocalChangesDetailsPreviewShown =
+            //
+            root
+            |> element "component" [ "name", "VcsManagerConfiguration" ]
+            |> element "option" [ "name", "LOCAL_CHANGES_DETAILS_PREVIEW_SHOWN" ]
+            |> attribute (xName "value") "false"
+
+            let gitLabMergeRequest =
+                root |> element "component" [ "name", "GitlabMajeraCodeReviewSettings" ]
+
+            match gitInfos with
+            | None -> ()
+            | Some gitInfos ->
+
+                gitLabMergeRequest.ReplaceWith(
                     XElement(
-                        "option",
-                        XAttribute("name", "LOCAL_CHANGES_DETAILS_PREVIEW_SHOWN"),
-                        XAttribute("value", "false")
+                        "component",
+                        XAttribute("name", "GitlabMajeraCodeReviewSettings"),
+                        XElement(
+                            "option",
+                            XAttribute("name", "processedVcsRemotes"),
+                            XElement(
+                                "set",
+                                XElement(
+                                    "StoredVcsRemote",
+                                    XElement(
+                                        "option",
+                                        XAttribute("name", "vcsRemoteUrl"),
+                                        XAttribute("value", gitInfos.RemoteUrl)
+                                    ),
+                                    XElement(
+                                        "option",
+                                        XAttribute("name", "vcsRootUrl"),
+                                        XAttribute("value", "file://$PROJECT_DIR$")
+                                    )
+                                )
+                            )
+                        ),
+                        XElement(
+                            "option",
+                            XAttribute("name", "pullRequestSearchScopePresentableStr"),
+                            XAttribute("value", gitInfos.PresentableString)
+                        ),
+                        XElement(
+                            "option",
+                            XAttribute("name", "servers"),
+                            XElement(
+                                "list",
+                                XElement(
+                                    "DiscoveredCodeReviewServer",
+                                    XElement("option", XAttribute("name", "serviceId"), XAttribute("value", "gitlab")),
+                                    XElement(
+                                        "option",
+                                        XAttribute("name", "storedCodeReviewRepositories"),
+                                        XElement(
+                                            "list",
+                                            XElement(
+                                                "StoredCodeReviewRepository",
+                                                XElement(
+                                                    "option",
+                                                    XAttribute("name", "name"),
+                                                    XAttribute("value", gitInfos.RemoteName)
+                                                ),
+                                                XElement(
+                                                    "option",
+                                                    XAttribute("name", "storedVcsRemote"),
+                                                    XElement(
+                                                        "StoredVcsRemote",
+                                                        XElement(
+                                                            "option",
+                                                            XAttribute("name", "vcsRemoteUrl"),
+                                                            XAttribute("value", gitInfos.RemoteUrl)
+                                                        ),
+                                                        XElement(
+                                                            "option",
+                                                            XAttribute("name", "vcsRootUrl"),
+                                                            XAttribute("value", "file://$PROJECT_DIR$")
+                                                        )
+                                                    )
+                                                ),
+                                                XElement(
+                                                    "option",
+                                                    XAttribute("name", "workspace"),
+                                                    XAttribute("value", gitInfos.WorkSpace)
+                                                )
+                                            )
+                                        )
+                                    ),
+                                    XElement("option", XAttribute("name", "url"), XAttribute("value", gitInfos.BaseUrl))
+                                )
+                            )
+                        )
                     )
+                )
 
-                vcsManagerConfiguration.Add(newLocalChangesDetailsPreviewShown)
-            | Some localChangesDetailsPreviewShown ->
-                match localChangesDetailsPreviewShown.Attribute("value") |> Option.ofObj with
-                | None -> localChangesDetailsPreviewShown.Add(XAttribute("value", "false"))
-                | Some attr -> attr.Value <- "false"
+            let projectLevelVcsManager =
+                root |> element "component" [ "name", "ProjectLevelVcsManager" ]
+
+            projectLevelVcsManager
+            |> element "ConfirmationsSetting" [ "id", "Add" ]
+            |> attribute (xName "value") "2"
+
+            projectLevelVcsManager
+            |> element "ConfirmationsSetting" [ "id", "Remove" ]
+            |> attribute (xName "value") "2"
 
             xDocument.Save(workspaceFile)
 
             printfn $" - done"
+
 
         }
 

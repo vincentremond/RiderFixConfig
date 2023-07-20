@@ -4,6 +4,7 @@ storage: none
 framework: auto-detect
 
 nuget FSharp.Core
+nuget LibGit2Sharp
 
 group Tests
 
