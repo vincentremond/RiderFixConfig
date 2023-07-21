@@ -7,12 +7,22 @@ open Microsoft.FSharp.Core
 open System.Xml.Linq
 
 [<RequireQualifiedAccess>]
+module String =
+    let trim (c: char) (s: string): string =
+        s.Trim(c)
+
+[<RequireQualifiedAccess>]
 module Directory =
     let getAllDirectories (searchPattern: string) (path: string) =
         Directory.GetDirectories(path, searchPattern, SearchOption.AllDirectories)
 
     let getAllFiles (searchPattern: string) (path: string) =
         Directory.GetFiles(path, searchPattern, SearchOption.AllDirectories)
+
+[<RequireQualifiedAccess>]
+module Regex =
+    let replace (pattern: string) (replacement: string) (input: string)=
+        System.Text.RegularExpressions.Regex.Replace(input, pattern, replacement)
 
 [<RequireQualifiedAccess>]
 module Array =
@@ -56,7 +66,7 @@ module Program =
 
     let getGitInfos file =
 
-        let locateGitDir (file: string) =
+        let locateGitDirRoot (file: string) =
 
             let tryCombine sub path =
                 let combined = Path.Combine(path, sub)
@@ -68,25 +78,26 @@ module Program =
                 |> Option.ofObj
 
             let rec locateGitDir' path =
-                path
-                |> tryCombine ".git"
-                |> Option.orElseWith (fun () ->
-                    tryParent path
-                    |> Option.bind locateGitDir'
-                )
+                match path |> tryCombine ".git" with
+                | Some _ -> Some path
+                | None ->
+                    match tryParent path with
+                    | Some parent -> locateGitDir' parent
+                    | None -> None
 
             locateGitDir' (Path.GetDirectoryName file)
 
-        let getRemotes (gitDir: string) =
+        let getOriginUrl (gitDir: string) =
             use repo = new LibGit2Sharp.Repository(gitDir)
-
-            repo.Network.Remotes
-            |> Seq.toList
+            let configurationEntry = repo.Config.Get<string>("remote.origin.url") |> Option.ofObj
+            configurationEntry |> Option.map (fun configurationEntry -> configurationEntry.Value |> Uri)
 
         let pickRemote (remotes: LibGit2Sharp.Remote list) =
-            remotes
-            |> Seq.tryFind (fun remote -> remote.Name = "origin")
-            |> Option.map (fun remote -> remote.Url |> Uri)
+            let uriOption = 
+                remotes
+                |> Seq.tryExactlyOne
+                |> Option.map (fun remote -> remote.PushUrl |> Uri)
+            uriOption
 
         let extractGitInfos (uri: Uri) =
 
@@ -96,22 +107,24 @@ module Program =
                     uri.Segments
                     |> Array.last
                     |> Path.GetFileNameWithoutExtension
-                PresentableString = $"GitLab {uri.ToString()}"
+                PresentableString =
+                    let presentableUri = uri.ToString() |> Regex.replace @"\.git$" "" 
+                    $"GitLab %s{presentableUri}"
                 WorkSpace =
                     uri.Segments
                     |> Seq.rev
                     |> Seq.skip 1
                     |> Seq.rev
-                    |> String.concat "/"
+                    |> String.concat String.Empty
+                    |> String.trim '/'
                 BaseUrl = uri.GetLeftPart(UriPartial.Authority)
             |}
 
             result
 
         file
-        |> locateGitDir
-        |> Option.map getRemotes
-        |> Option.bind pickRemote
+        |> locateGitDirRoot
+        |> Option.bind getOriginUrl
         |> Option.map extractGitInfos
 
     let applyFix workspaceFile =
@@ -130,13 +143,13 @@ module Program =
             |> element "option" [ "name", "LOCAL_CHANGES_DETAILS_PREVIEW_SHOWN" ]
             |> attribute (xName "value") "false"
 
-            let gitLabMergeRequest =
-                root
-                |> element "component" [ "name", "GitlabMajeraCodeReviewSettings" ]
-
             match gitInfos with
             | None -> ()
             | Some gitInfos ->
+
+                let gitLabMergeRequest =
+                    root
+                    |> element "component" [ "name", "GitlabMajeraCodeReviewSettings" ]
 
                 gitLabMergeRequest.ReplaceWith(
                     XElement(
@@ -261,6 +274,9 @@ module Program =
                  |> Async.Sequential
                  |> Async.Ignore)
 
+            printfn "Done - press [ENTER] to exit"
+            
+            Console.ReadLine() |> ignore
             return 0
         }
 
