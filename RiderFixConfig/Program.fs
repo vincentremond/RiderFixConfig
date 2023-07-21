@@ -17,13 +17,19 @@ module Directory =
 [<RequireQualifiedAccess>]
 module Array =
     let iterAsync (f: 'T -> Async<'U>) (array: 'T[]) =
-        array |> Array.map f |> Async.Sequential
+        array
+        |> Array.map f
+        |> Async.Sequential
 
 module Program =
 
     let inline xName (localName: string) = XName.Get(localName)
 
-    let folders = [| @"D:\VRM\"; @"D:\GIT\"; @"D:\TMP\" |]
+    let folders = [|
+        @"D:\VRM\"
+        @"D:\GIT\"
+        @"D:\TMP\"
+    |]
 
     let element (name: string) (attributes: (string * string) seq) (container: XContainer) : XElement =
         let name = xName name
@@ -31,19 +37,24 @@ module Program =
         container.Elements()
         |> Seq.tryFind (fun x ->
             x.Name = name
-            && attributes |> Seq.forall (fun (name, value) -> x.Attribute(name).Value = value)
-        ) |> Option.defaultWith (fun () ->
-            let element = XElement(name, attributes |> Seq.map (fun (name, value) -> XAttribute(name, value)))
+            && attributes
+               |> Seq.forall (fun (name, value) -> x.Attribute(name).Value = value)
+        )
+        |> Option.defaultWith (fun () ->
+            let element =
+                XElement(
+                    name,
+                    attributes
+                    |> Seq.map (fun (name, value) -> XAttribute(name, value))
+                )
+
             container.Add(element)
             element
         )
 
     let attribute (name: XName) (value: obj) (element: XElement) = element.SetAttributeValue(name, value)
 
-
     let getGitInfos file =
-
-
 
         let locateGitDir (file: string) =
 
@@ -52,18 +63,25 @@ module Program =
                 if Directory.Exists(combined) then Some combined else None
 
             let tryParent (path: string) =
-                path |> Path.GetDirectoryName |> Option.ofObj
+                path
+                |> Path.GetDirectoryName
+                |> Option.ofObj
 
             let rec locateGitDir' path =
                 path
                 |> tryCombine ".git"
-                |> Option.orElseWith (fun () -> tryParent path |> Option.bind locateGitDir')
+                |> Option.orElseWith (fun () ->
+                    tryParent path
+                    |> Option.bind locateGitDir'
+                )
 
             locateGitDir' (Path.GetDirectoryName file)
 
         let getRemotes (gitDir: string) =
             use repo = new LibGit2Sharp.Repository(gitDir)
-            repo.Network.Remotes |> Seq.toList
+
+            repo.Network.Remotes
+            |> Seq.toList
 
         let pickRemote (remotes: LibGit2Sharp.Remote list) =
             remotes
@@ -74,12 +92,20 @@ module Program =
 
             let result = {|
                 RemoteUrl = uri.ToString()
-                RemoteName = uri.Segments |> Array.last |> Path.GetFileNameWithoutExtension
+                RemoteName =
+                    uri.Segments
+                    |> Array.last
+                    |> Path.GetFileNameWithoutExtension
                 PresentableString = $"GitLab {uri.ToString()}"
-                WorkSpace = uri.Segments |> Seq.rev |> Seq.skip 1 |> Seq.rev |> String.concat "/"
+                WorkSpace =
+                    uri.Segments
+                    |> Seq.rev
+                    |> Seq.skip 1
+                    |> Seq.rev
+                    |> String.concat "/"
                 BaseUrl = uri.GetLeftPart(UriPartial.Authority)
             |}
-            
+
             result
 
         file
@@ -105,7 +131,8 @@ module Program =
             |> attribute (xName "value") "false"
 
             let gitLabMergeRequest =
-                root |> element "component" [ "name", "GitlabMajeraCodeReviewSettings" ]
+                root
+                |> element "component" [ "name", "GitlabMajeraCodeReviewSettings" ]
 
             match gitInfos with
             | None -> ()
@@ -193,7 +220,8 @@ module Program =
                 )
 
             let projectLevelVcsManager =
-                root |> element "component" [ "name", "ProjectLevelVcsManager" ]
+                root
+                |> element "component" [ "name", "ProjectLevelVcsManager" ]
 
             projectLevelVcsManager
             |> element "ConfirmationsSetting" [ "id", "Add" ]
@@ -207,16 +235,20 @@ module Program =
 
             printfn $" - done"
 
-
         }
-
 
     let main _ =
         async {
 
-            let any =  Seq.isEmpty>> not
-            let anyProcess = Process.GetProcessesByName >> any
-            while  (anyProcess "Rider") || (anyProcess "Rider64") || (anyProcess "Rider.Backend") do
+            let any = Seq.isEmpty >> not
+
+            let anyProcess =
+                Process.GetProcessesByName
+                >> any
+
+            while (anyProcess "Rider")
+                  || (anyProcess "Rider64")
+                  || (anyProcess "Rider.Backend") do
                 printfn "Please close Rider before running this tool"
                 do! Async.Sleep 1000
 
@@ -233,4 +265,6 @@ module Program =
         }
 
     [<EntryPoint>]
-    let mainAsync argv = main argv |> Async.RunSynchronously
+    let mainAsync argv =
+        main argv
+        |> Async.RunSynchronously

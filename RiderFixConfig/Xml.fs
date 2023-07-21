@@ -11,7 +11,10 @@ module XElement =
     let element (name: XName) (x: XContainer) = !? x.Element(name)
 
     let findOrAddElement (finder: XElement -> bool) (init: unit -> XElement) (x: XContainer) : XElement =
-        match (x.Elements() |> Seq.tryFind finder) with
+        match
+            (x.Elements()
+             |> Seq.tryFind finder)
+        with
         | Some e -> e
         | None ->
             let newElement = init ()
