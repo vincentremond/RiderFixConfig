@@ -5,11 +5,13 @@
     <TargetFramework>net7.0</TargetFramework>
     <WarningsAsErrors>FS0025</WarningsAsErrors>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <ApplicationIcon>fix-config.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <None Include="paket.references" />
     <Compile Include="Xml.fs" />
     <Compile Include="Program.fs" />
+    <Content Include="fix-config.ico" />
   </ItemGroup>
   <Import Project="..\.paket\Paket.Restore.targets" />
 </Project>

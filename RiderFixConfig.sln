@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "RiderFixSingleClick", "RiderFixSingleClick\RiderFixSingleClick.fsproj", "{B8D548EA-1724-49C9-8C86-03916949A295}"
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "RiderFixConfig", "RiderFixConfig\RiderFixConfig.fsproj", "{B8D548EA-1724-49C9-8C86-03916949A295}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".build", ".build", "{9874716F-2F90-470C-9185-C7927EDB5668}"
 	ProjectSection(SolutionItems) = preProject

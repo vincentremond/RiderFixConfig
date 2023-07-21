@@ -1,1 +1,1 @@
-# RiderFixSingleClick
+# RiderFixConfig

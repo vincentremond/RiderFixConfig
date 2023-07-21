@@ -1,6 +1,7 @@
-﻿namespace RiderFixSingleClick
+﻿namespace RiderFixConfig
 
 open System
+open System.Diagnostics
 open System.IO
 open Microsoft.FSharp.Core
 open System.Xml.Linq
@@ -212,6 +213,12 @@ module Program =
 
     let main _ =
         async {
+
+            let any =  Seq.isEmpty>> not
+            let anyProcess = Process.GetProcessesByName >> any
+            while  (anyProcess "Rider") || (anyProcess "Rider64") || (anyProcess "Rider.Backend") do
+                printfn "Please close Rider before running this tool"
+                do! Async.Sleep 1000
 
             do!
                 (folders

@@ -1,4 +1,4 @@
-﻿namespace RiderFixSingleClick
+﻿namespace RiderFixConfig
 
 open System.Xml.Linq
 
