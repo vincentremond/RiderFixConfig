@@ -5,6 +5,8 @@ open System.Xml.Linq
 [<AutoOpen>]
 module Operators =
     let (!?) a = Option.ofObj a
+    
+    let inline xName (localName: string) = XName.Get(localName)
 
 [<RequireQualifiedAccess>]
 module XElement =

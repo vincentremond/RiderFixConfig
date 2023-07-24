@@ -3,43 +3,17 @@
 open System
 open System.Diagnostics
 open System.IO
+open System.Threading
 open Microsoft.FSharp.Core
 open System.Xml.Linq
 
-[<RequireQualifiedAccess>]
-module String =
-    let trim (c: char) (s: string): string =
-        s.Trim(c)
-
-[<RequireQualifiedAccess>]
-module Directory =
-    let getAllDirectories (searchPattern: string) (path: string) =
-        Directory.GetDirectories(path, searchPattern, SearchOption.AllDirectories)
-
-    let getAllFiles (searchPattern: string) (path: string) =
-        Directory.GetFiles(path, searchPattern, SearchOption.AllDirectories)
-
-[<RequireQualifiedAccess>]
-module Regex =
-    let replace (pattern: string) (replacement: string) (input: string)=
-        System.Text.RegularExpressions.Regex.Replace(input, pattern, replacement)
-
-[<RequireQualifiedAccess>]
-module Array =
-    let iterAsync (f: 'T -> Async<'U>) (array: 'T[]) =
-        array
-        |> Array.map f
-        |> Async.Sequential
-
 module Program =
 
-    let inline xName (localName: string) = XName.Get(localName)
-
-    let folders = [|
+    let folders = [
         @"D:\VRM\"
         @"D:\GIT\"
         @"D:\TMP\"
-    |]
+    ]
 
     let element (name: string) (attributes: (string * string) seq) (container: XContainer) : XElement =
         let name = xName name
@@ -89,15 +63,16 @@ module Program =
 
         let getOriginUrl (gitDir: string) =
             use repo = new LibGit2Sharp.Repository(gitDir)
-            let configurationEntry = repo.Config.Get<string>("remote.origin.url") |> Option.ofObj
-            configurationEntry |> Option.map (fun configurationEntry -> configurationEntry.Value |> Uri)
 
-        let pickRemote (remotes: LibGit2Sharp.Remote list) =
-            let uriOption = 
-                remotes
-                |> Seq.tryExactlyOne
-                |> Option.map (fun remote -> remote.PushUrl |> Uri)
-            uriOption
+            let configurationEntry =
+                repo.Config.Get<string>("remote.origin.url")
+                |> Option.ofObj
+
+            configurationEntry
+            |> Option.map (fun configurationEntry ->
+                configurationEntry.Value
+                |> Uri
+            )
 
         let extractGitInfos (uri: Uri) =
 
@@ -108,7 +83,10 @@ module Program =
                     |> Array.last
                     |> Path.GetFileNameWithoutExtension
                 PresentableString =
-                    let presentableUri = uri.ToString() |> Regex.replace @"\.git$" "" 
+                    let presentableUri =
+                        uri.ToString()
+                        |> Regex.replace @"\.git$" ""
+
                     $"GitLab %s{presentableUri}"
                 WorkSpace =
                     uri.Segments
@@ -131,9 +109,19 @@ module Program =
         async {
             printf $"Modifying %s{workspaceFile}"
 
-            let gitInfos = getGitInfos workspaceFile
+            let xDocument =
+                if File.Exists(workspaceFile) then
+                    XDocument.Load(workspaceFile)
+                else
+                    let directoryName = Path.GetDirectoryName(workspaceFile)
 
-            let xDocument = XDocument.Load(workspaceFile)
+                    if not (Directory.Exists(directoryName)) then
+                        Directory.CreateDirectory(directoryName)
+                        |> ignore
+
+                    XDocument(XElement("project", XAttribute("version", "4")))
+
+            let gitInfos = getGitInfos workspaceFile
 
             let root = xDocument.Root
 
@@ -149,12 +137,12 @@ module Program =
 
                 let gitLabMergeRequest =
                     root
-                    |> element "component" [ "name", "GitlabMajeraCodeReviewSettings" ]
+                    |> element "component" [ "name", @"GitlabMajeraCodeReviewSettings" ]
 
                 gitLabMergeRequest.ReplaceWith(
                     XElement(
                         "component",
-                        XAttribute("name", "GitlabMajeraCodeReviewSettings"),
+                        XAttribute("name", @"GitlabMajeraCodeReviewSettings"),
                         XElement(
                             "option",
                             XAttribute("name", "processedVcsRemotes"),
@@ -250,37 +238,70 @@ module Program =
 
         }
 
-    let main _ =
+    let main args =
         async {
 
+            let targetFolders, singleFolder =
+                match args with
+                | [ folder ] -> [ folder ], true
+                | _ -> folders, false
+
             let any = Seq.isEmpty >> not
+
+            let getProcess =
+                Process.GetProcessesByName
+                >> Seq.toList
 
             let anyProcess =
                 Process.GetProcessesByName
                 >> any
 
-            while (anyProcess "Rider")
-                  || (anyProcess "Rider64")
-                  || (anyProcess "Rider.Backend") do
-                printfn "Please close Rider before running this tool"
-                do! Async.Sleep 1000
+            if not singleFolder then
+                while (anyProcess "Rider")
+                      || (anyProcess "Rider64")
+                      || (anyProcess "Rider.Backend") do
+                    printfn "Rider is running - do you want to kill it?  [Y/Enter] = yes kill  |  [N] = no wait"
+                    let consoleKeyInfo = Console.ReadKey(true)
+
+                    match consoleKeyInfo.Key with
+                    | ConsoleKey.Enter
+                    | ConsoleKey.Y ->
+                        [
+                            "Rider"
+                            "Rider64"
+                            "Rider.Backend"
+                        ]
+                        |> List.collect getProcess
+                        |> List.iter (fun p -> p.Kill())
+                    | _ -> Thread.Sleep(1000)
+
+            let deductWorkspaceFileLocation (slnPath: string) : string =
+                let solutionName = Path.GetFileNameWithoutExtension slnPath
+                let folder = Path.GetDirectoryName slnPath
+
+                folder
+                </> ".idea"
+                </> $".idea.%s{solutionName}"
+                </> ".idea"
+                </> "workspace.xml"
 
             do!
-                (folders
-                 |> Array.collect (Directory.getAllDirectories ".idea")
-                 |> Array.collect (Directory.getAllFiles "workspace.xml")
-                 |> Array.distinct
-                 |> Array.map applyFix
+                (targetFolders
+                 |> List.collect (Directory.getAllFiles "*.sln")
+                 |> List.map deductWorkspaceFileLocation
+                 |> List.distinct
+                 |> List.map applyFix
                  |> Async.Sequential
                  |> Async.Ignore)
 
-            printfn "Done - press [ENTER] to exit"
-            
-            Console.ReadLine() |> ignore
+            if not singleFolder then
+                printfn "Done - press [ENTER] to exit"
+                Console.ReadLine() |> ignore
+
             return 0
         }
 
     [<EntryPoint>]
     let mainAsync argv =
-        main argv
+        main (argv |> Array.toList)
         |> Async.RunSynchronously
