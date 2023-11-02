@@ -5,14 +5,14 @@
     <TargetFramework>net7.0</TargetFramework>
     <WarningsAsErrors>FS0025</WarningsAsErrors>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <ApplicationIcon>fix-config.ico</ApplicationIcon>
+    <ApplicationIcon>icon-file-circle-check.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <None Include="paket.references" />
     <Compile Include="Xml.fs" />
     <Compile Include="Helpers.fs" />
     <Compile Include="Program.fs" />
-    <Content Include="fix-config.ico" />
+    <Content Include="icon-file-circle-check.ico" />
   </ItemGroup>
   <Import Project="..\.paket\Paket.Restore.targets" />
 </Project>
