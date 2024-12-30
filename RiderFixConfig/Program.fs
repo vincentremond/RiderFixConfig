@@ -10,9 +10,10 @@ open System.Xml.Linq
 module Program =
 
     let folders = [
-        @"D:\VRM\"
-        @"D:\GIT\"
-        @"D:\TMP\"
+        // @"D:\VRM\"
+        // @"D:\GIT\"
+        // @"D:\TMP\"
+        @"C:\Users\remond\repos\PrestK\PrestK"
     ]
 
     let element (name: string) (attributes: (string * string) seq) (container: XContainer) : XElement =
@@ -21,16 +22,11 @@ module Program =
         container.Elements()
         |> Seq.tryFind (fun x ->
             x.Name = name
-            && attributes
-               |> Seq.forall (fun (name, value) -> x.Attribute(name).Value = value)
+            && attributes |> Seq.forall (fun (name, value) -> x.Attribute(name).Value = value)
         )
         |> Option.defaultWith (fun () ->
             let element =
-                XElement(
-                    name,
-                    attributes
-                    |> Seq.map (fun (name, value) -> XAttribute(name, value))
-                )
+                XElement(name, attributes |> Seq.map (fun (name, value) -> XAttribute(name, value)))
 
             container.Add(element)
             element
@@ -47,9 +43,7 @@ module Program =
                 if Directory.Exists(combined) then Some combined else None
 
             let tryParent (path: string) =
-                path
-                |> Path.GetDirectoryName
-                |> Option.ofObj
+                path |> Path.GetDirectoryName |> Option.ofObj
 
             let rec locateGitDir' path =
                 match path |> tryCombine ".git" with
@@ -65,27 +59,18 @@ module Program =
             use repo = new LibGit2Sharp.Repository(gitDir)
 
             let configurationEntry =
-                repo.Config.Get<string>("remote.origin.url")
-                |> Option.ofObj
+                repo.Config.Get<string>("remote.origin.url") |> Option.ofObj
 
             configurationEntry
-            |> Option.map (fun configurationEntry ->
-                configurationEntry.Value
-                |> Uri
-            )
+            |> Option.map (fun configurationEntry -> configurationEntry.Value |> Uri)
 
         let extractGitInfos (uri: Uri) =
 
             let result = {|
                 RemoteUrl = uri.ToString()
-                RemoteName =
-                    uri.Segments
-                    |> Array.last
-                    |> Path.GetFileNameWithoutExtension
+                RemoteName = uri.Segments |> Array.last |> Path.GetFileNameWithoutExtension
                 PresentableString =
-                    let presentableUri =
-                        uri.ToString()
-                        |> Regex.replace @"\.git$" ""
+                    let presentableUri = uri.ToString() |> Regex.replace @"\.git$" ""
 
                     $"GitLab %s{presentableUri}"
                 WorkSpace =
@@ -116,8 +101,7 @@ module Program =
                     let directoryName = Path.GetDirectoryName(workspaceFile)
 
                     if not (Directory.Exists(directoryName)) then
-                        Directory.CreateDirectory(directoryName)
-                        |> ignore
+                        Directory.CreateDirectory(directoryName) |> ignore
 
                     XDocument(XElement("project", XAttribute("version", "4")))
 
@@ -136,8 +120,7 @@ module Program =
             | Some gitInfos ->
 
                 let gitLabMergeRequest =
-                    root
-                    |> element "component" [ "name", @"GitlabMajeraCodeReviewSettings" ]
+                    root |> element "component" [ "name", @"GitlabMajeraCodeReviewSettings" ]
 
                 gitLabMergeRequest.ReplaceWith(
                     XElement(
@@ -221,8 +204,7 @@ module Program =
                 )
 
             let projectLevelVcsManager =
-                root
-                |> element "component" [ "name", "ProjectLevelVcsManager" ]
+                root |> element "component" [ "name", "ProjectLevelVcsManager" ]
 
             projectLevelVcsManager
             |> element "ConfirmationsSetting" [ "id", "Add" ]
@@ -248,18 +230,12 @@ module Program =
 
             let any = Seq.isEmpty >> not
 
-            let getProcess =
-                Process.GetProcessesByName
-                >> Seq.toList
+            let getProcess = Process.GetProcessesByName >> Seq.toList
 
-            let anyProcess =
-                Process.GetProcessesByName
-                >> any
+            let anyProcess = Process.GetProcessesByName >> any
 
             if not singleFolder then
-                while (anyProcess "Rider")
-                      || (anyProcess "Rider64")
-                      || (anyProcess "Rider.Backend") do
+                while (anyProcess "Rider") || (anyProcess "Rider64") || (anyProcess "Rider.Backend") do
                     printfn "Rider is running - do you want to kill it?  [Y/Enter] = yes kill  |  [N] = no wait"
                     let consoleKeyInfo = Console.ReadKey(true)
 
@@ -279,11 +255,7 @@ module Program =
                 let solutionName = Path.GetFileNameWithoutExtension slnPath
                 let folder = Path.GetDirectoryName slnPath
 
-                folder
-                </> ".idea"
-                </> $".idea.%s{solutionName}"
-                </> ".idea"
-                </> "workspace.xml"
+                folder </> ".idea" </> $".idea.%s{solutionName}" </> ".idea" </> "workspace.xml"
 
             do!
                 (targetFolders
@@ -303,5 +275,4 @@ module Program =
 
     [<EntryPoint>]
     let mainAsync argv =
-        main (argv |> Array.toList)
-        |> Async.RunSynchronously
+        main (argv |> Array.toList) |> Async.RunSynchronously

@@ -2,7 +2,6 @@ namespace RiderFixConfig
 
 open System.IO
 
-
 [<RequireQualifiedAccess>]
 module String =
     let trim (c: char) (s: string) : string = s.Trim(c)
@@ -13,7 +12,8 @@ module Directory =
         Directory.GetDirectories(path, searchPattern, SearchOption.AllDirectories)
 
     let getAllFiles (searchPattern: string) (path: string) =
-        Directory.GetFiles(path, searchPattern, SearchOption.AllDirectories) |> Array.toList
+        Directory.GetFiles(path, searchPattern, SearchOption.AllDirectories)
+        |> Array.toList
 
 [<RequireQualifiedAccess>]
 module Regex =
@@ -23,11 +23,8 @@ module Regex =
 [<RequireQualifiedAccess>]
 module Array =
     let iterAsync (f: 'T -> Async<'U>) (array: 'T[]) =
-        array
-        |> Array.map f
-        |> Async.Sequential
+        array |> Array.map f |> Async.Sequential
 
 [<AutoOpen>]
 module Path =
     let (</>) (path1: string) (path2: string) = Path.Combine(path1, path2)
-
