@@ -9,11 +9,10 @@ open System.Xml.Linq
 
 module Program =
 
+    let userProfileFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
+    
     let folders = [
-        // @"D:\VRM\"
-        // @"D:\GIT\"
-        // @"D:\TMP\"
-        @"C:\Users\remond\repos\PrestK\PrestK"
+        Path.Join(userProfileFolder, "repos")
     ]
 
     let element (name: string) (attributes: (string * string) seq) (container: XContainer) : XElement =
@@ -32,7 +31,10 @@ module Program =
             element
         )
 
-    let attribute (name: XName) (value: obj) (element: XElement) = element.SetAttributeValue(name, value)
+    let elements (name: string) (container: XContainer) : XElement seq = container.Elements(name)
+
+    let getAttribute (name: XName) (element: XElement) = element.Attribute(name).Value
+    let setAttribute (name: XName) (value: obj) (element: XElement) = element.SetAttributeValue(name, value)
 
     let getGitInfos file =
 
@@ -113,107 +115,34 @@ module Program =
             root
             |> element "component" [ "name", "VcsManagerConfiguration" ]
             |> element "option" [ "name", "LOCAL_CHANGES_DETAILS_PREVIEW_SHOWN" ]
-            |> attribute (xName "value") "false"
-
-            match gitInfos with
-            | None -> ()
-            | Some gitInfos ->
-
-                let gitLabMergeRequest =
-                    root |> element "component" [ "name", @"GitlabMajeraCodeReviewSettings" ]
-
-                gitLabMergeRequest.ReplaceWith(
-                    XElement(
-                        "component",
-                        XAttribute("name", @"GitlabMajeraCodeReviewSettings"),
-                        XElement(
-                            "option",
-                            XAttribute("name", "processedVcsRemotes"),
-                            XElement(
-                                "set",
-                                XElement(
-                                    "StoredVcsRemote",
-                                    XElement(
-                                        "option",
-                                        XAttribute("name", "vcsRemoteUrl"),
-                                        XAttribute("value", gitInfos.RemoteUrl)
-                                    ),
-                                    XElement(
-                                        "option",
-                                        XAttribute("name", "vcsRootUrl"),
-                                        XAttribute("value", "file://$PROJECT_DIR$")
-                                    )
-                                )
-                            )
-                        ),
-                        XElement(
-                            "option",
-                            XAttribute("name", "pullRequestSearchScopePresentableStr"),
-                            XAttribute("value", gitInfos.PresentableString)
-                        ),
-                        XElement(
-                            "option",
-                            XAttribute("name", "servers"),
-                            XElement(
-                                "list",
-                                XElement(
-                                    "DiscoveredCodeReviewServer",
-                                    XElement("option", XAttribute("name", "serviceId"), XAttribute("value", "gitlab")),
-                                    XElement(
-                                        "option",
-                                        XAttribute("name", "storedCodeReviewRepositories"),
-                                        XElement(
-                                            "list",
-                                            XElement(
-                                                "StoredCodeReviewRepository",
-                                                XElement(
-                                                    "option",
-                                                    XAttribute("name", "name"),
-                                                    XAttribute("value", gitInfos.RemoteName)
-                                                ),
-                                                XElement(
-                                                    "option",
-                                                    XAttribute("name", "storedVcsRemote"),
-                                                    XElement(
-                                                        "StoredVcsRemote",
-                                                        XElement(
-                                                            "option",
-                                                            XAttribute("name", "vcsRemoteUrl"),
-                                                            XAttribute("value", gitInfos.RemoteUrl)
-                                                        ),
-                                                        XElement(
-                                                            "option",
-                                                            XAttribute("name", "vcsRootUrl"),
-                                                            XAttribute("value", "file://$PROJECT_DIR$")
-                                                        )
-                                                    )
-                                                ),
-                                                XElement(
-                                                    "option",
-                                                    XAttribute("name", "workspace"),
-                                                    XAttribute("value", gitInfos.WorkSpace)
-                                                )
-                                            )
-                                        )
-                                    ),
-                                    XElement("option", XAttribute("name", "url"), XAttribute("value", gitInfos.BaseUrl))
-                                )
-                            )
-                        )
-                    )
-                )
+            |> setAttribute (xName "value") "false"
 
             let projectLevelVcsManager =
                 root |> element "component" [ "name", "ProjectLevelVcsManager" ]
 
             projectLevelVcsManager
             |> element "ConfirmationsSetting" [ "id", "Add" ]
-            |> attribute (xName "value") "2"
+            |> setAttribute (xName "value") "2"
 
             projectLevelVcsManager
             |> element "ConfirmationsSetting" [ "id", "Remove" ]
-            |> attribute (xName "value") "2"
+            |> setAttribute (xName "value") "2"
 
+            // Run manager
+
+            let runManager = root |> element "component" [ "name", "RunManager" ]
+
+            let configurations = runManager |> elements "configuration"
+
+            for configuration in configurations do
+                let name = configuration |> getAttribute (xName "name")
+                let split = name.Split(":", 2)
+
+                match split with
+                | [| folderName; _ |] -> configuration |> setAttribute (xName "folderName") folderName
+                | _ -> ()
+
+            // Save result
             xDocument.Save(workspaceFile)
 
             printfn $" - done"
@@ -234,22 +163,30 @@ module Program =
 
             let anyProcess = Process.GetProcessesByName >> any
 
-            if not singleFolder then
-                while (anyProcess "Rider") || (anyProcess "Rider64") || (anyProcess "Rider.Backend") do
-                    printfn "Rider is running - do you want to kill it?  [Y/Enter] = yes kill  |  [N] = no wait"
-                    let consoleKeyInfo = Console.ReadKey(true)
+            let anyProcessList = (List.map anyProcess) >> List.reduce (||)
 
-                    match consoleKeyInfo.Key with
-                    | ConsoleKey.Enter
-                    | ConsoleKey.Y ->
-                        [
-                            "Rider"
-                            "Rider64"
-                            "Rider.Backend"
-                        ]
-                        |> List.collect getProcess
-                        |> List.iter (fun p -> p.Kill())
-                    | _ -> Thread.Sleep(1000)
+            if not singleFolder then
+
+                let processesToLookFor = [
+                    "Rider"
+                    "Rider64"
+                    "Rider.Backend"
+                ]
+
+                let rec check () =
+                    if anyProcessList processesToLookFor then
+                        printfn "Rider is running - do you want to kill it?  [Y/Enter] = yes kill  | [I] = ignore |  [N] = no wait"
+                        let consoleKeyInfo = Console.ReadKey(true)
+
+                        match consoleKeyInfo.Key with
+                        | ConsoleKey.I -> () // ignore
+                        | ConsoleKey.Enter
+                        | ConsoleKey.Y -> processesToLookFor |> List.collect getProcess |> List.iter _.Kill()
+                        | _ ->
+                            Thread.Sleep(1000)
+                            check ()
+
+                check ()
 
             let deductWorkspaceFileLocation (slnPath: string) : string =
                 let solutionName = Path.GetFileNameWithoutExtension slnPath
