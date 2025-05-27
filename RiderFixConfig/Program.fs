@@ -9,11 +9,10 @@ open System.Xml.Linq
 
 module Program =
 
-    let userProfileFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
-    
-    let folders = [
-        Path.Join(userProfileFolder, "repos")
-    ]
+    let userProfileFolder =
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
+
+    let folders = [ Path.Join(userProfileFolder, "repos") ]
 
     let element (name: string) (attributes: (string * string) seq) (container: XContainer) : XElement =
         let name = xName name
@@ -34,6 +33,10 @@ module Program =
     let elements (name: string) (container: XContainer) : XElement seq = container.Elements(name)
 
     let getAttribute (name: XName) (element: XElement) = element.Attribute(name).Value
+
+    let tryGetAttribute (name: XName) (element: XElement) =
+        element.Attribute(name) |> Option.ofObj |> Option.map _.Value
+
     let setAttribute (name: XName) (value: obj) (element: XElement) = element.SetAttributeValue(name, value)
 
     let getGitInfos file =
@@ -135,12 +138,16 @@ module Program =
             let configurations = runManager |> elements "configuration"
 
             for configuration in configurations do
-                let name = configuration |> getAttribute (xName "name")
-                let split = name.Split(":", 2)
+                let name = configuration |> tryGetAttribute (xName "name")
 
-                match split with
-                | [| folderName; _ |] -> configuration |> setAttribute (xName "folderName") folderName
-                | _ -> ()
+                match name with
+                | None -> ()
+                | Some name ->
+                    let split = name.Split(":", 2)
+
+                    match split with
+                    | [| folderName; _ |] -> configuration |> setAttribute (xName "folderName") folderName
+                    | _ -> ()
 
             // Save result
             xDocument.Save(workspaceFile)
