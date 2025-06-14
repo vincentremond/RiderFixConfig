@@ -182,7 +182,9 @@ module Program =
 
                 let rec check () =
                     if anyProcessList processesToLookFor then
-                        printfn "Rider is running - do you want to kill it?  [Y/Enter] = yes kill  | [I] = ignore |  [N] = no wait"
+                        printfn
+                            "Rider is running - do you want to kill it?  [Y/Enter] = yes kill  | [I] = ignore |  [N] = no wait"
+
                         let consoleKeyInfo = Console.ReadKey(true)
 
                         match consoleKeyInfo.Key with

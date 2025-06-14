@@ -1,6 +1,6 @@
-@ECHO OFF
+$ErrorActionPreference = "Stop"
 
 dotnet tool restore
-dotnet build -- %*
+dotnet build
 
 AddToPath .\RiderFixConfig\bin\Debug
