@@ -11,6 +11,7 @@
     <None Include="paket.references" />
     <Compile Include="Xml.fs" />
     <Compile Include="Helpers.fs" />
+    <Compile Include="Fixer.fs" />
     <Compile Include="Program.fs" />
     <Content Include="icon-file-circle-check.ico" />
   </ItemGroup>
