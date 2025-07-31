@@ -6,6 +6,12 @@ open System.IO
 open System.Threading
 open Microsoft.FSharp.Core
 open System.Xml.Linq
+open Pinicola.FSharp.SpectreConsole
+
+type KillResponse =
+    | Kill
+    | Continue
+    | Wait
 
 module Program =
 
@@ -16,7 +22,7 @@ module Program =
 
     let applyFix workspaceFile =
 
-        printf $"Fixing %s{workspaceFile}"
+        AnsiConsole.markupLineInterpolated $"Fixing [yellow]{workspaceFile}[/]"
 
         let xDocument =
             if File.Exists(workspaceFile) then
@@ -63,13 +69,17 @@ module Program =
                     printfn
                         "Rider is running - do you want to kill it?  [Y/Enter] = yes kill  | [I] = ignore |  [N] = no wait"
 
-                    let consoleKeyInfo = Console.ReadKey(true)
+                    let killResponse =
+                        SelectionPrompt.prompt "Rider is running - do you want to kill it?" [
+                            Kill
+                            Continue
+                            Wait
+                        ]
 
-                    match consoleKeyInfo.Key with
-                    | ConsoleKey.I -> () // ignore
-                    | ConsoleKey.Enter
-                    | ConsoleKey.Y -> processesToLookFor |> List.collect getProcess |> List.iter _.Kill()
-                    | _ ->
+                    match killResponse with
+                    | Continue -> () // ignore
+                    | Kill -> processesToLookFor |> List.collect getProcess |> List.iter _.Kill()
+                    | Wait ->
                         Thread.Sleep(1000)
                         checkIfRiderIsRunning ()
 

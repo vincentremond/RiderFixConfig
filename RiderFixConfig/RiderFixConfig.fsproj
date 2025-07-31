@@ -15,5 +15,9 @@
     <Compile Include="Program.fs" />
     <Content Include="icon-file-circle-check.ico" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Pinicola.FSharp\Pinicola.FSharp.SpectreConsole\Pinicola.FSharp.SpectreConsole.fsproj" />
+    <ProjectReference Include="..\Pinicola.FSharp\Pinicola.FSharp\Pinicola.FSharp.fsproj" />
+  </ItemGroup>
   <Import Project="..\.paket\Paket.Restore.targets" />
 </Project>
