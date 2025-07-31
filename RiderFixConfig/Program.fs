@@ -4,6 +4,7 @@ open System
 open System.Diagnostics
 open System.IO
 open System.Threading
+open Humanizer
 open Microsoft.FSharp.Core
 open System.Xml.Linq
 open Pinicola.FSharp.SpectreConsole
@@ -18,7 +19,10 @@ module Program =
     let userProfileFolder =
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
 
-    let defaultFolders = [ Path.Join(userProfileFolder, "repos") ]
+    let defaultFolders = [
+        userProfileFolder </> "repos"
+        userProfileFolder </> "tmp"
+    ]
 
     let applyFix workspaceFile =
 
@@ -43,6 +47,8 @@ module Program =
     [<EntryPoint>]
     let main args =
 
+        let timer = Stopwatch.StartNew()
+
         let targetFolders, singleFolder =
             match args with
             | [| folder |] -> [ folder ], true
@@ -66,11 +72,8 @@ module Program =
 
             let rec checkIfRiderIsRunning () =
                 if anyProcessList processesToLookFor then
-                    printfn
-                        "Rider is running - do you want to kill it?  [Y/Enter] = yes kill  | [I] = ignore |  [N] = no wait"
-
                     let killResponse =
-                        SelectionPrompt.prompt "Rider is running - do you want to kill it?" [
+                        SelectionPrompt.prompt (Raw "Rider is running - do you want to kill it?") [
                             Kill
                             Continue
                             Wait
@@ -96,8 +99,8 @@ module Program =
         |> List.map deductWorkspaceFileLocation
         |> List.iter applyFix
 
-        if not singleFolder then
-            printfn "Done - press [ENTER] to exit"
-            Console.ReadLine() |> ignore
+        timer.Stop()
+
+        AnsiConsole.confirm (Raw $"Done in {timer.Elapsed.Humanize()} - press [ENTER] to exit") |> ignore
 
         0

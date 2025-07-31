@@ -1,6 +1,7 @@
 ﻿namespace RiderFixConfig
 
 open System.Xml.Linq
+open Pinicola.FSharp.SpectreConsole
 
 [<RequireQualifiedAccess>]
 module Fixer =
@@ -108,6 +109,7 @@ module Fixer =
 
         ]
 
-        for (fixName, fixAction) in fixes do
-            printfn $"Fixing %s{fixName}"
+        for fixName, fixAction in fixes do
+            AnsiConsole.markupInterpolated $" - [grey]Fixing [/]{fixName}"
             fixAction ()
+            AnsiConsole.markupLineInterpolated $" [green]✓[/]"
