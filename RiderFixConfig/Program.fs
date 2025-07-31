@@ -34,8 +34,6 @@ module Program =
         // Save modified document
         xDocument.Save(workspaceFile)
 
-        printfn " - done"
-
     [<EntryPoint>]
     let main args =
 

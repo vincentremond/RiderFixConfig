@@ -15,7 +15,14 @@ module Fixer =
         container.Elements()
         |> Seq.tryFind (fun x ->
             x.Name = name
-            && attributes |> Seq.forall (fun (name, value) -> x.Attribute(name).Value = value)
+            && attributes
+               |> Seq.forall (fun (name, value) ->
+                   let attribute = x.Attribute(name) |> Option.ofObj
+
+                   match attribute with
+                   | None -> false
+                   | Some x -> x.Value = value
+               )
         )
         |> Option.defaultWith (fun () ->
             let element =
@@ -63,7 +70,6 @@ module Fixer =
 
             "Regroup run configurations by folder",
             (fun () ->
-                let runManager = getComponent "RunManager"
 
                 let runManager = getComponent "RunManager"
 
@@ -81,8 +87,27 @@ module Fixer =
                         | [| folderName; _ |] -> configuration |> setAttribute (xName "folderName") folderName
                         | _ -> ()
             )
+
+            "Enable « Break on exception handled by user code »",
+            (fun () ->
+                let xDebuggerManager = getComponent "XDebuggerManager"
+
+                let breakpointManager =
+                    xDebuggerManager |> getOrCreateElement "breakpoint-manager" []
+
+                let defaultBreakpoints =
+                    breakpointManager |> getOrCreateElement "default-breakpoints" []
+
+                let breakPoint =
+                    defaultBreakpoints
+                    |> getOrCreateElement "breakpoint" [ "type", "DotNet_Exception_Breakpoints" ]
+
+                let properties = breakPoint |> getOrCreateElement "properties" []
+                properties |> setAttribute (xName "breakIfHandledByUserCode") "true"
+            )
+
         ]
 
         for (fixName, fixAction) in fixes do
-            printfn $"Fixing {fixName}"
+            printfn $"Fixing %s{fixName}"
             fixAction ()
