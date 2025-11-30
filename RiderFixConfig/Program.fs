@@ -73,11 +73,14 @@ module Program =
             let rec checkIfRiderIsRunning () =
                 if anyProcessList processesToLookFor then
                     let killResponse =
-                        SelectionPrompt.prompt (Raw "Rider is running - do you want to kill it?") [
+                        SelectionPrompt.init ()
+                        |> SelectionPrompt.withRawTitle "Rider is running - do you want to kill it?"
+                        |> SelectionPrompt.addChoices [
                             Kill
                             Continue
                             Wait
                         ]
+                        |> AnsiConsole.prompt
 
                     match killResponse with
                     | Continue -> () // ignore
