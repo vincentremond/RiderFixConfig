@@ -101,6 +101,7 @@ module Program =
 
         timer.Stop()
 
-        AnsiConsole.confirm (Raw $"Done in {timer.Elapsed.Humanize()} - press [ENTER] to exit") |> ignore
+        AnsiConsole.confirm (Raw $"Done in {timer.Elapsed.Humanize()} - press [ENTER] to exit")
+        |> ignore
 
         0
