@@ -4,7 +4,6 @@ open System
 open System.Diagnostics
 open System.IO
 open System.Threading
-open Humanizer
 open Microsoft.FSharp.Core
 open System.Xml.Linq
 open Pinicola.FSharp.SpectreConsole
@@ -103,8 +102,5 @@ module Program =
         |> List.iter applyFix
 
         timer.Stop()
-
-        AnsiConsole.confirm (Raw $"Done in {timer.Elapsed.Humanize()} - press [ENTER] to exit")
-        |> ignore
 
         0
