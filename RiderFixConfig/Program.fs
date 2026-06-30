@@ -46,6 +46,8 @@ module Program =
     [<EntryPoint>]
     let main args =
 
+        Console.Title <- "Rider Config Fixer"
+
         let timer = Stopwatch.StartNew()
 
         let targetFolders, singleFolder =
